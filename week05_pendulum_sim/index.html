@@ -7,11 +7,14 @@
   <style>
     :root {
       --bg: #1a1a24;
-      --panel: #22222d;
+      --panel: rgba(255, 255, 255, 0.04);
+      --panel-border: rgba(255, 255, 255, 0.08);
       --rod: #dfe7ff;
       --bob: #7fe7ff;
       --glow: rgba(127, 231, 255, 0.55);
       --text: #edf3ff;
+      --muted: #a9b5d2;
+      --accent: #7fe7ff;
     }
 
     * { box-sizing: border-box; }
@@ -31,6 +34,14 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
+      padding: 24px;
+    }
+
+    .app {
+      width: min(92vw, 920px);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
     }
 
     canvas {
@@ -38,27 +49,164 @@
       background: var(--bg);
       border-radius: 18px;
       box-shadow: 0 0 32px rgba(52, 94, 152, 0.32);
-      width: min(92vw, 900px);
+      width: 100%;
       height: auto;
       aspect-ratio: 16 / 9;
+    }
+
+    .control-panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 18px 18px 14px;
+      box-shadow: inset 0 0 18px rgba(255,255,255,0.02);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(180px, 1fr));
+      gap: 14px 18px;
+      align-items: center;
+    }
+
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.96rem;
+      color: var(--text);
+    }
+
+    .value {
+      color: var(--accent);
+      font-weight: 600;
+      min-width: 72px;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    button {
+      margin-top: 14px;
+      border: 1px solid rgba(127, 231, 255, 0.4);
+      background: rgba(127, 231, 255, 0.08);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 0.96rem;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover {
+      background: rgba(127, 231, 255, 0.12);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 720px) {
+      .controls {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-  <canvas id="simCanvas" width="900" height="540" aria-label="单摆仿真动画"></canvas>
+  <div class="app">
+    <canvas id="simCanvas" width="900" height="540" aria-label="单摆仿真动画"></canvas>
+
+    <div class="control-panel">
+      <div class="controls">
+        <div class="control">
+          <div class="label-row">
+            <label for="lengthSlider">摆长</label>
+            <span id="lengthValue" class="value">200 px</span>
+          </div>
+          <input id="lengthSlider" type="range" min="100" max="350" step="1" value="200" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="gravitySlider">重力</label>
+            <span id="gravityValue" class="value">9.8</span>
+          </div>
+          <input id="gravitySlider" type="range" min="1" max="25" step="0.1" value="9.8" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="dampingSlider">阻尼</label>
+            <span id="dampingValue" class="value">0.0030</span>
+          </div>
+          <input id="dampingSlider" type="range" min="0.000" max="0.010" step="0.0005" value="0.003" />
+        </div>
+      </div>
+
+      <button id="resetButton" type="button">重置摆动</button>
+    </div>
+  </div>
 
   <script>
     const canvas = document.getElementById('simCanvas');
     const ctx = canvas.getContext('2d');
 
+    const state = {
+      length: 200,
+      gravity: 9.8,
+      damping: 0.003,
+      theta: Math.PI / 4,
+      omega: 0,
+      previousTime: 0
+    };
+
     const anchor = { x: canvas.width / 2, y: 70 };
-    const length = 200;
-    const g = 9.8;
     const bobRadius = 18;
 
-    let theta = Math.PI / 4;
-    let omega = 0;
-    let previousTime = 0;
+    const lengthSlider = document.getElementById('lengthSlider');
+    const gravitySlider = document.getElementById('gravitySlider');
+    const dampingSlider = document.getElementById('dampingSlider');
+    const lengthValue = document.getElementById('lengthValue');
+    const gravityValue = document.getElementById('gravityValue');
+    const dampingValue = document.getElementById('dampingValue');
+    const resetButton = document.getElementById('resetButton');
+
+    function syncLabels() {
+      lengthValue.textContent = `${state.length} px`;
+      gravityValue.textContent = state.gravity.toFixed(1);
+      dampingValue.textContent = state.damping.toFixed(4);
+    }
+
+    function applySliderValues() {
+      state.length = Number(lengthSlider.value);
+      state.gravity = Number(gravitySlider.value);
+      state.damping = Number(dampingSlider.value);
+      syncLabels();
+    }
+
+    lengthSlider.addEventListener('input', applySliderValues);
+    gravitySlider.addEventListener('input', applySliderValues);
+    dampingSlider.addEventListener('input', applySliderValues);
+
+    function resetPendulum() {
+      state.theta = Math.PI / 4;
+      state.omega = 0;
+    }
+
+    resetButton.addEventListener('click', resetPendulum);
 
     function drawBackground() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -82,10 +230,9 @@
     }
 
     function drawPendulum() {
-      const x = anchor.x + Math.sin(theta) * length;
-      const y = anchor.y + Math.cos(theta) * length;
+      const x = anchor.x + Math.sin(state.theta) * state.length;
+      const y = anchor.y + Math.cos(state.theta) * state.length;
 
-      // 支架
       ctx.strokeStyle = '#dfe7ff';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -93,7 +240,6 @@
       ctx.lineTo(anchor.x + 18, anchor.y);
       ctx.stroke();
 
-      // 摆杆
       ctx.beginPath();
       ctx.moveTo(anchor.x, anchor.y);
       ctx.lineTo(x, y);
@@ -104,7 +250,6 @@
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // 摆球发光
       const glow = ctx.createRadialGradient(x, y, 4, x, y, bobRadius + 18);
       glow.addColorStop(0, 'rgba(255,255,255,0.95)');
       glow.addColorStop(0.35, 'rgba(127,231,255,0.8)');
@@ -125,15 +270,15 @@
     }
 
     function updatePhysics(dt) {
-      const alpha = -(g / 60) * Math.sin(theta);
-      omega += alpha * dt * 60;
-      omega *= 0.999;
-      theta += omega * dt * 60;
+      const angularAcceleration = -(state.gravity / state.length) * Math.sin(state.theta);
+      state.omega += angularAcceleration * dt;
+      state.omega *= Math.exp(-state.damping * dt * 60);
+      state.theta += state.omega * dt;
     }
 
     function animate(timestamp) {
-      const dt = Math.min((timestamp - previousTime) / 1000 || 0.016, 0.033);
-      previousTime = timestamp;
+      const dt = Math.min((timestamp - state.previousTime) / 1000 || 0.016, 0.033);
+      state.previousTime = timestamp;
 
       updatePhysics(dt);
       drawBackground();
@@ -142,6 +287,7 @@
       requestAnimationFrame(animate);
     }
 
+    applySliderValues();
     requestAnimationFrame(animate);
   </script>
 </body>

@@ -156,7 +156,7 @@
         </div>
       </div>
 
-      <button id="resetButton" type="button">重置摆动</button>
+      <button id="resetButton" type="button" aria-label="重置摆动">重置摆动</button>
     </div>
   </div>
 
@@ -201,12 +201,15 @@
     gravitySlider.addEventListener('input', applySliderValues);
     dampingSlider.addEventListener('input', applySliderValues);
 
-    function resetPendulum() {
+    function resetAnimation() {
       state.theta = Math.PI / 4;
       state.omega = 0;
+      state.previousTime = 0;
     }
 
-    resetButton.addEventListener('click', resetPendulum);
+    window.resetAnimation = resetAnimation;
+    resetButton.addEventListener('click', resetAnimation);
+    resetButton.onclick = resetAnimation;
 
     function drawBackground() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
